@@ -1,13 +1,35 @@
-import mongoose from "mongoose";
+import Datastore from "@seald-io/nedb";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`✅ MongoDB connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`❌ MongoDB connection error: ${error.message}`);
-    process.exit(1);
-  }
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-export default connectDB;
+// Production: Electron sets process.env.DB_PATH to app.getPath('userData')
+// Dev: store in backend/data/
+const dbDir = process.env.DB_PATH
+  ? path.join(process.env.DB_PATH, "invoice-db")
+  : path.join(__dirname, "../../data");
+
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+export const usersDB = new Datastore({
+  filename: path.join(dbDir, "users.db"),
+  autoload: true,
+});
+
+export const invoicesDB = new Datastore({
+  filename: path.join(dbDir, "invoices.db"),
+  autoload: true,
+});
+
+// Unique indexes
+usersDB.ensureIndex({ fieldName: "email", unique: true });
+invoicesDB.ensureIndex({ fieldName: "invoice_number", sparse: true });
+
+export default function connectDB() {
+  console.log(`✅ NeDB initialized at: ${dbDir}`);
+}

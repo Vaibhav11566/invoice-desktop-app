@@ -1,162 +1,165 @@
-import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
+import { invoicesDB, usersDB } from "../config/db.js";
 
-const itemSchema = new mongoose.Schema(
-  {
-    product_name: {
-      type: String,
-      required: [true, "Product name is required"],
-    },
-    description: {
-      type: String,
-      default: "",
-    },
-    quantity: {
-      type: Number,
-      required: [true, "Quantity is required"],
-      min: [1, "Quantity must be at least 1"],
-      default: 1,
-    },
-    unit_price: {
-      type: Number,
-      required: [true, "Unit price is required"],
-      min: [0, "Unit price cannot be negative"],
-    },
-    total: {
-      type: Number,
-      default: 0,
-    },
-  },
-  { _id: true }
-);
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-const invoiceSchema = new mongoose.Schema(
-  {
-    invoice_number: {
-      type: String,
-      unique: true,
-    },
-    client_name: {
-      type: String,
-      required: [true, "Client name is required"],
-      trim: true,
-    },
-    client_email: {
-      type: String,
-      lowercase: true,
-      trim: true,
-      default: "",
-    },
-    client_phone: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    shipping_address: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    items: {
-      type: [itemSchema],
-      default: [],
-    },
-    subtotal: {
-      type: Number,
-      default: 0,
-    },
-    tax_percent: {
-      type: Number,
-      default: 0,
-    },
-    tax_amount: {
-      type: Number,
-      default: 0,
-    },
-    total_amount: {
-      type: Number,
-      default: 0,
-    },
-    order_status: {
-      type: String,
-      enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
-      default: "Pending",
-    },
-    payment_status: {
-      type: String,
-      enum: ["Pending", "Verified", "Failed"],
-      default: "Pending",
-    },
-    payment_screenshot: {
-      type: String,
-      default: null,
-    },
-    transaction_id: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    payment_service: {
-      type: String,
-      enum: ["UPI", "BankTransfer", "Cash", "Card", "Other", ""],
-      default: "",
-    },
-    other_payment_service: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    purchase_type: {
-      type: String,
-      enum: ["NewJoining", "RePurchase"],
-      default: "RePurchase",
-    },
-    remarks: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    created_by: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    deleted_at: {
-      type: Date,
-      default: null,
-    },
-  },
-  { timestamps: true }
-);
+function generateInvoiceNumber() {
+  const now = new Date();
+  const dateStr =
+    now.getFullYear().toString() +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    String(now.getDate()).padStart(2, "0");
+  const uniquePart = uuidv4().replace(/-/g, "").substring(0, 8).toUpperCase();
+  return `INV-${dateStr}-${uniquePart}`;
+}
 
-// Pre-save hook: auto invoice_number + calculations
-invoiceSchema.pre("save", function (next) {
-  // Auto-generate invoice_number if not set
-  if (!this.invoice_number) {
-    const now = new Date();
-    const dateStr =
-      now.getFullYear().toString() +
-      String(now.getMonth() + 1).padStart(2, "0") +
-      String(now.getDate()).padStart(2, "0");
-    const uniquePart = uuidv4().replace(/-/g, "").substring(0, 8).toUpperCase();
-    this.invoice_number = `INV-${dateStr}-${uniquePart}`;
+function recalculate(data) {
+  const items = (data.items || []).map((item) => ({
+    ...item,
+    _id: item._id || uuidv4(),
+    total: item.quantity * item.unit_price,
+  }));
+  const subtotal = items.reduce((sum, i) => sum + i.total, 0);
+  const taxPercent = Number(data.tax_percent) || 0;
+  const tax_amount = (subtotal * taxPercent) / 100;
+  const total_amount = subtotal + tax_amount;
+  return { items, subtotal, tax_amount, total_amount };
+}
+
+async function joinUsers(docs) {
+  if (!docs.length) return docs;
+  const ids = [...new Set(docs.map((d) => d.created_by).filter(Boolean))];
+  const users = await Promise.all(ids.map((id) => usersDB.findOneAsync({ _id: id })));
+  const map = {};
+  users.forEach((u) => {
+    if (u) map[u._id] = { _id: u._id, name: u.name, email: u.email, phone: u.phone || "" };
+  });
+  return docs.map((doc) => ({
+    ...doc,
+    created_by: map[doc.created_by] ?? doc.created_by,
+  }));
+}
+
+// Wrap a plain NeDB doc so it has a Mongoose-like .save() method.
+function createInstance(doc) {
+  const instance = { ...doc };
+  const docId = doc._id;
+
+  instance.save = async () => {
+    // Recalculate numeric fields if items changed
+    if (Array.isArray(instance.items)) {
+      const calcs = recalculate(instance);
+      instance.items = calcs.items;
+      instance.subtotal = calcs.subtotal;
+      instance.tax_amount = calcs.tax_amount;
+      instance.total_amount = calcs.total_amount;
+    }
+
+    // Build update payload — skip functions and _id
+    const updateData = {};
+    for (const [k, v] of Object.entries(instance)) {
+      if (k !== "_id" && typeof v !== "function") updateData[k] = v;
+    }
+    updateData.updatedAt = new Date();
+
+    await invoicesDB.updateAsync({ _id: docId }, { $set: updateData });
+    return instance;
+  };
+
+  return instance;
+}
+
+// ─── chainable query builder ───────────────────────────────────────────────────
+
+class InvoiceQuery {
+  constructor(filter, single = false) {
+    this._filter = filter;
+    this._single = single;
+    this._doPopulate = false;
+    this._sort = null;
+    this._skip = 0;
+    this._limit = 0;
   }
 
-  // Calculate item totals
-  this.items.forEach((item) => {
-    item.total = item.quantity * item.unit_price;
-  });
+  populate(_field, _fields) {
+    this._doPopulate = true;
+    return this;
+  }
 
-  // Calculate subtotal
-  this.subtotal = this.items.reduce((sum, item) => sum + item.total, 0);
+  sort(spec) { this._sort = spec; return this; }
+  skip(n) { this._skip = n; return this; }
+  limit(n) { this._limit = n; return this; }
 
-  // Calculate tax and total
-  this.tax_amount = (this.subtotal * this.tax_percent) / 100;
-  this.total_amount = this.subtotal + this.tax_amount;
+  then(resolve, reject) { return this._exec().then(resolve, reject); }
+  catch(reject) { return this._exec().catch(reject); }
 
-  next();
-});
+  async _exec() {
+    if (this._single) {
+      const doc = await invoicesDB.findOneAsync(this._filter);
+      if (!doc) return null;
+      const [populated] = this._doPopulate ? await joinUsers([doc]) : [doc];
+      return createInstance(populated);
+    }
 
-const Invoice = mongoose.model("Invoice", invoiceSchema);
+    // Multi-doc cursor
+    let cursor = invoicesDB.find(this._filter);
+    if (this._sort)  cursor = cursor.sort(this._sort);
+    if (this._skip)  cursor = cursor.skip(this._skip);
+    if (this._limit) cursor = cursor.limit(this._limit);
+
+    const docs = await cursor.execAsync();
+    const final = this._doPopulate ? await joinUsers(docs) : docs;
+    return final.map(createInstance);
+  }
+}
+
+// ─── exported model ────────────────────────────────────────────────────────────
+
+const Invoice = {
+  find(filter) {
+    return new InvoiceQuery(filter, false);
+  },
+
+  findOne(filter) {
+    return new InvoiceQuery(filter, true);
+  },
+
+  async countDocuments(filter) {
+    return invoicesDB.countAsync(filter);
+  },
+
+  async create(data) {
+    const calcs = recalculate(data);
+    const now = new Date();
+
+    const doc = {
+      invoice_number: generateInvoiceNumber(),
+      client_name: data.client_name,
+      client_email: data.client_email || "",
+      client_phone: data.client_phone || "",
+      shipping_address: data.shipping_address || "",
+      items: calcs.items,
+      subtotal: calcs.subtotal,
+      tax_percent: Number(data.tax_percent) || 0,
+      tax_amount: calcs.tax_amount,
+      total_amount: calcs.total_amount,
+      order_status: data.order_status || "Pending",
+      payment_status: data.payment_status || "Pending",
+      payment_screenshot: data.payment_screenshot || null,
+      transaction_id: data.transaction_id || "",
+      payment_service: data.payment_service || "",
+      other_payment_service: data.other_payment_service || "",
+      purchase_type: data.purchase_type || "RePurchase",
+      remarks: data.remarks || "",
+      created_by: data.created_by,
+      deleted_at: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const inserted = await invoicesDB.insertAsync(doc);
+    return createInstance(inserted);
+  },
+};
 
 export default Invoice;

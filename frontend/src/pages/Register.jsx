@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FiFileText, FiUser, FiMail, FiPhone, FiLock } from "react-icons/fi";
+import { FiFileText, FiUser, FiMail, FiPhone, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext.jsx";
 import "./Auth.css";
@@ -14,6 +14,8 @@ const Register = () => {
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
@@ -138,12 +140,21 @@ const Register = () => {
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   className="form-control"
                   placeholder="Min 6 chars"
                   value={form.password}
                   onChange={handleChange}
                 />
+                <button
+                  type="button"
+                  className="eye-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <FiEye /> : <FiEyeOff />}
+                </button>
               </div>
             </div>
 
@@ -156,12 +167,21 @@ const Register = () => {
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type="password"
+                  type={showConfirm ? "text" : "password"}
                   className="form-control"
                   placeholder="Repeat password"
                   value={form.confirmPassword}
                   onChange={handleChange}
                 />
+                <button
+                  type="button"
+                  className="eye-toggle"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showConfirm ? "Hide password" : "Show password"}
+                >
+                  {showConfirm ? <FiEye /> : <FiEyeOff />}
+                </button>
               </div>
             </div>
           </div>

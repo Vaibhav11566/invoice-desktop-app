@@ -9,7 +9,7 @@
     "frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "start": "npm run build && electron .",
-    "dist:win": "npm run build && electron-builder --win --x64"
+    "dist:win": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64"
   },
   "build": {
     "appId": "com.ishwar.invoicemanager",
@@ -39,7 +39,9 @@
           ]
         }
       ],
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "sign": null,
+      "signingHashAlgorithms": null
     },
     "nsis": {
       "oneClick": false,
@@ -51,6 +53,7 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
     "wait-on": "^7.2.0"

@@ -86,6 +86,29 @@
 
 .input-icon .form-control {
   padding-left: 36px;
+  padding-right: 36px; /* space for eye button */
+}
+
+/* Eye toggle button */
+.eye-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+
+.eye-toggle:hover {
+  color: var(--primary);
 }
 
 /* Auth Button */

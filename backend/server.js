@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import connectDB from "./src/config/db.js";
+import connectDB from "./src/config/db.js"; // NeDB — no external MongoDB needed
 import authRoutes from "./src/routes/auth.routes.js";
 import invoiceRoutes from "./src/routes/invoice.routes.js";
 
@@ -63,8 +63,21 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
+});
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(
+      `❌ Port ${PORT} is already in use.\n` +
+      `   Fix: Run this in terminal →  npx kill-port ${PORT}\n` +
+      `   Or close any other running instance of the app.`
+    );
+    process.exit(1);
+  } else {
+    throw err;
+  }
 });
 
 export default app;

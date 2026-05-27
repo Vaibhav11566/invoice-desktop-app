@@ -24,6 +24,11 @@ async function startBackend() {
       "backend",
       "server.js"
     );
+
+    // Tell NeDB where to store its .db files (AppData\Roaming\Invoice Manager\)
+    // Must be set BEFORE importing the backend module.
+    process.env.DB_PATH = app.getPath("userData");
+
     await import(pathToFileURL(backendEntry).href);
     console.log("✅ Backend started (inline)");
   } catch (err) {
