@@ -1,0 +1,58 @@
+{
+  "name": "invoice-desktop-app",
+  "version": "1.0.0",
+  "main": "electron-main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:5173 && electron .\"",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.ishwar.invoicemanager",
+    "productName": "Invoice Manager",
+    "copyright": "Copyright © 2024 Ishwar",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron-main.js",
+      "electron-preload.js",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "wait-on": "^7.2.0"
+  }
+}
