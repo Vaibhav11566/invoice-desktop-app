@@ -1,10 +1,13 @@
 import axios from "axios";
 
+// ⬇️ After deploying to Render, replace this with your actual Render URL
+const RENDER_API_URL = "https://YOUR_APP_NAME.onrender.com/api";
+
 // Dev: Vite proxies /api → http://localhost:5001
-// Production (file:// protocol): must use full URL
+// Production (file:// protocol): calls Render cloud API
 const baseURL =
   typeof window !== "undefined" && window.location.protocol === "file:"
-    ? "http://localhost:5001/api"
+    ? RENDER_API_URL
     : "/api";
 
 const api = axios.create({

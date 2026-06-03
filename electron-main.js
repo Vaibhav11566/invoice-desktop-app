@@ -1,44 +1,13 @@
-import { app, BrowserWindow, shell, dialog } from "electron";
-import { fileURLToPath, pathToFileURL } from "url";
+import { app, BrowserWindow, shell } from "electron";
+import { fileURLToPath } from "url";
 import path from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// app.isPackaged = true  →  built .exe  (electron-builder)
-// app.isPackaged = false →  dev mode    (npm run dev)
 const isPacked = app.isPackaged;
 
 let mainWindow = null;
-
-/**
- * Production only: import the Express backend inline inside Electron's Node runtime.
- * In dev, the backend is already running via `npm run backend` (concurrently).
- */
-async function startBackend() {
-  if (!isPacked) return; // dev: concurrently already started it
-
-  try {
-    const backendEntry = path.join(
-      process.resourcesPath, // ..\resources\  (outside asar)
-      "backend",
-      "server.js"
-    );
-
-    // Tell NeDB where to store its .db files (AppData\Roaming\Invoice Manager\)
-    // Must be set BEFORE importing the backend module.
-    process.env.DB_PATH = app.getPath("userData");
-
-    await import(pathToFileURL(backendEntry).href);
-    console.log("✅ Backend started (inline)");
-  } catch (err) {
-    console.error("❌ Backend failed to start:", err);
-    dialog.showErrorBox(
-      "Backend Startup Error",
-      `Server could not start:\n\n${err.message}`
-    );
-  }
-}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -76,10 +45,8 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(async () => {
-  await startBackend();
-  // Give backend 1.5s to bind the port before opening window
-  setTimeout(createWindow, isPacked ? 1500 : 0);
+app.whenReady().then(() => {
+  createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
