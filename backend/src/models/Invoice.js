@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 
 const itemSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  product_name: { type: String, required: true },
+  description: { type: String, default: "" },
   quantity: { type: Number, required: true, min: 1 },
   unit_price: { type: Number, required: true, min: 0 },
   total: { type: Number, default: 0 },
