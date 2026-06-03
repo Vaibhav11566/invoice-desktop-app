@@ -60,9 +60,9 @@ function createWindow() {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
-    // Production: load built frontend from asar
+    // Production: app.getAppPath() reliably returns the asar root path
     mainWindow.loadFile(
-      path.join(__dirname, "frontend", "dist", "index.html")
+      path.join(app.getAppPath(), "frontend", "dist", "index.html")
     );
   }
 

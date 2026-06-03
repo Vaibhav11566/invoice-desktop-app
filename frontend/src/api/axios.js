@@ -1,7 +1,14 @@
 import axios from "axios";
 
+// Dev: Vite proxies /api → http://localhost:5001
+// Production (file:// protocol): must use full URL
+const baseURL =
+  typeof window !== "undefined" && window.location.protocol === "file:"
+    ? "http://localhost:5001/api"
+    : "/api";
+
 const api = axios.create({
-  baseURL: "/api",
+  baseURL,
   timeout: 10000,
 });
 
@@ -24,7 +31,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      window.location.hash = "#/login";
     }
     return Promise.reject(error);
   }

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import Layout from "./components/Layout.jsx";
@@ -70,12 +70,12 @@ const AppRoutes = () => (
 );
 
 const App = () => (
-  <BrowserRouter>
+  <HashRouter>
     <AuthProvider>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       <AppRoutes />
     </AuthProvider>
-  </BrowserRouter>
+  </HashRouter>
 );
 
 export default App;
