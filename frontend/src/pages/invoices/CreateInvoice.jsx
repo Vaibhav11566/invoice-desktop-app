@@ -1,80 +1,122 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  FiUser,
-  FiShoppingCart,
-  FiCreditCard,
-  FiInfo,
-  FiPlus,
-  FiTrash2,
-} from "react-icons/fi";
+import { FiPlus, FiTrash2, FiEye } from "react-icons/fi";
 import toast from "react-hot-toast";
 import api from "../../api/axios.js";
+import InvoiceTemplate from "./InvoiceTemplate.jsx";
+import { BUSINESS } from "../../config/business.js";
 import "./Invoices.css";
 
 const emptyItem = () => ({
   product_name: "",
-  description: "",
-  quantity: 1,
+  hsn_no: "",
+  batch: "",
+  mfg_date: "",
+  expiry_date: "",
+  mrp: 0,
   unit_price: 0,
+  quantity: 1,
+  sgst_percent: 2.5,
+  cgst_percent: 2.5,
+  igst_percent: 0,
 });
+
+const round2 = (v) => Math.round(v * 100) / 100;
+
+const calcItem = (item) => {
+  const base = Number(item.quantity) * Number(item.unit_price);
+  const sgst = round2((base * Number(item.sgst_percent)) / 100);
+  const cgst = round2((base * Number(item.cgst_percent)) / 100);
+  const igst = round2((base * Number(item.igst_percent)) / 100);
+  return { base, sgst, cgst, igst, total: round2(base + sgst + cgst + igst) };
+};
+
+const fmt = (val) =>
+  `₹${Number(val || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+const todayStr = () =>
+  new Date().toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
 const CreateInvoice = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [screenshotFile, setScreenshotFile] = useState(null);
+  const [previewInvoice, setPreviewInvoice] = useState(null);
 
   const [form, setForm] = useState({
+    document_type: "Invoice",
     client_name: "",
-    client_email: "",
     client_phone: "",
     shipping_address: "",
+    client_gst_no: "",
+    client_state: "",
+    client_email: "",
     items: [emptyItem()],
-    tax_percent: 0,
-    purchase_type: "RePurchase",
-    payment_service: "",
-    other_payment_service: "",
-    transaction_id: "",
-    remarks: "",
   });
 
-  // Calculations
-  const subtotal = form.items.reduce(
-    (sum, item) => sum + Number(item.quantity) * Number(item.unit_price),
-    0
+  const totals = useMemo(
+    () =>
+      form.items.reduce(
+        (acc, item) => {
+          const c = calcItem(item);
+          return {
+            base: acc.base + c.base,
+            sgst: acc.sgst + c.sgst,
+            cgst: acc.cgst + c.cgst,
+            igst: acc.igst + c.igst,
+            total: acc.total + c.total,
+          };
+        },
+        { base: 0, sgst: 0, cgst: 0, igst: 0, total: 0 }
+      ),
+    [form.items]
   );
-  const taxAmount = (subtotal * Number(form.tax_percent)) / 100;
-  const total = subtotal + taxAmount;
 
-  const updateField = (field, value) => {
+  const updateField = (field, value) =>
     setForm((prev) => ({ ...prev, [field]: value }));
-  };
 
-  const updateItem = (index, field, value) => {
+  const updateItem = (index, field, value) =>
     setForm((prev) => {
       const items = [...prev.items];
       items[index] = { ...items[index], [field]: value };
       return { ...prev, items };
     });
-  };
 
-  const addItem = () => {
+  const addItem = () =>
     setForm((prev) => ({ ...prev, items: [...prev.items, emptyItem()] }));
-  };
 
-  const removeItem = (index) => {
+  const removeItem = (index) =>
     setForm((prev) => ({
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
     }));
-  };
 
-  const formatINR = (val) =>
-    `₹${Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  const openPreview = () => {
+    setPreviewInvoice({
+      invoice_number: "PREVIEW",
+      createdAt: new Date().toISOString(),
+      document_type: form.document_type,
+      client_name: form.client_name,
+      client_phone: form.client_phone,
+      client_email: form.client_email,
+      client_gst_no: form.client_gst_no,
+      client_state: form.client_state,
+      shipping_address: form.shipping_address,
+      items: form.items.map((item) => {
+        const c = calcItem(item);
+        return { ...item, sgst_amount: c.sgst, cgst_amount: c.cgst, igst_amount: c.igst, total: c.total };
+      }),
+      base_amount: totals.base,
+      total_gst: round2(totals.sgst + totals.cgst + totals.igst),
+      total_amount: totals.total,
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!form.client_name.trim()) {
       toast.error("Client name is required.");
       return;
@@ -85,37 +127,18 @@ const CreateInvoice = () => {
         return;
       }
       if (Number(item.unit_price) <= 0) {
-        toast.error("All items must have a unit price greater than 0.");
+        toast.error("All items must have a rate greater than 0.");
         return;
       }
     }
 
     setLoading(true);
     try {
-      let res;
-      if (screenshotFile) {
-        const formData = new FormData();
-        Object.entries(form).forEach(([key, val]) => {
-          if (key === "items") {
-            formData.append("items", JSON.stringify(val));
-          } else {
-            formData.append(key, val);
-          }
-        });
-        formData.append("payment_screenshot", screenshotFile);
-        res = await api.post("/invoices", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      } else {
-        res = await api.post("/invoices", form);
-      }
-
-      toast.success("Invoice created successfully! 🎉");
+      const res = await api.post("/invoices", form);
+      toast.success("Invoice created successfully!");
       navigate(`/invoices/${res.data.data.invoice._id}`);
     } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Failed to create invoice."
-      );
+      toast.error(error.response?.data?.message || "Failed to create invoice.");
     } finally {
       setLoading(false);
     }
@@ -123,276 +146,259 @@ const CreateInvoice = () => {
 
   return (
     <div className="page-container">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Create Invoice</h1>
-          <p className="page-subtitle">Fill in the details below</p>
+      {previewInvoice && (
+        <InvoiceTemplate
+          invoice={previewInvoice}
+          onClose={() => setPreviewInvoice(null)}
+        />
+      )}
+
+      {/* Top bar */}
+      <div className="inv-create-topbar">
+        <div className="inv-create-biz-selector">
+          <span className="inv-create-biz-label">Business (seller on invoice):</span>
+          <select className="form-control inv-create-biz-select">
+            <option>{BUSINESS.name}</option>
+          </select>
+        </div>
+        <div className="inv-create-doctype">
+          <span className="inv-create-biz-label">Document type:</span>
+          <div className="doc-type-toggle">
+            <button
+              type="button"
+              className={`doc-type-btn ${form.document_type === "Invoice" ? "active" : ""}`}
+              onClick={() => updateField("document_type", "Invoice")}
+            >
+              Invoice
+            </button>
+            <button
+              type="button"
+              className={`doc-type-btn ${form.document_type === "Quotation" ? "active" : ""}`}
+              onClick={() => updateField("document_type", "Quotation")}
+            >
+              Quotation
+            </button>
+          </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Section 1 — Client Info */}
+        {/* Business Info Card */}
+        <div className="inv-biz-card">
+          <div className="inv-biz-card-left">
+            {BUSINESS.logo && (
+              <img src={BUSINESS.logo} alt="logo" className="inv-biz-card-logo" />
+            )}
+            <div>
+              <div className="inv-biz-card-name">{BUSINESS.name}</div>
+              <div className="inv-biz-card-line">{BUSINESS.address}</div>
+              <div className="inv-biz-card-line">Phone No.: {BUSINESS.phone}</div>
+              <div className="inv-biz-card-line">E-mail: {BUSINESS.email}</div>
+              <div className="inv-biz-card-line">GSTIN: {BUSINESS.gstin}</div>
+              <div className="inv-biz-card-line">PAN No.: {BUSINESS.pan}</div>
+            </div>
+          </div>
+          <div className="inv-biz-card-right">
+            <div className="inv-biz-card-date">{todayStr()}</div>
+            <div className="inv-biz-card-date-note">
+              Set automatically when the document is first saved; not editable here.
+            </div>
+          </div>
+        </div>
+
+        {/* Consignee Details */}
         <div className="form-section" style={{ marginBottom: 16 }}>
-          <h3 className="form-section-title">
-            <FiUser /> Client Information
-          </h3>
+          <h3 className="form-section-title">Consignee Details (Shipped to)</h3>
           <div className="invoice-form-grid">
             <div className="form-group">
-              <label>Client Name *</label>
+              <label>Name</label>
               <input
                 className="form-control"
-                placeholder="Full name"
+                placeholder="Consignee / Customer name"
                 value={form.client_name}
                 onChange={(e) => updateField("client_name", e.target.value)}
               />
             </div>
             <div className="form-group">
-              <label>Client Email</label>
-              <input
-                type="email"
-                className="form-control"
-                placeholder="email@example.com"
-                value={form.client_email}
-                onChange={(e) => updateField("client_email", e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label>Client Phone</label>
+              <label>Phone No.</label>
               <input
                 className="form-control"
-                placeholder="+91 98765 43210"
+                placeholder="Phone number"
                 value={form.client_phone}
                 onChange={(e) => updateField("client_phone", e.target.value)}
               />
             </div>
-            <div className="form-group">
-              <label>Purchase Type</label>
-              <select
-                className="form-control"
-                value={form.purchase_type}
-                onChange={(e) => updateField("purchase_type", e.target.value)}
-              >
-                <option value="RePurchase">Re-Purchase</option>
-                <option value="NewJoining">New Joining</option>
-              </select>
-            </div>
             <div className="form-group form-full">
-              <label>Shipping Address</label>
+              <label>Address</label>
               <textarea
                 className="form-control"
                 rows={2}
-                placeholder="Full shipping address"
+                placeholder="Full address"
                 value={form.shipping_address}
-                onChange={(e) =>
-                  updateField("shipping_address", e.target.value)
-                }
+                onChange={(e) => updateField("shipping_address", e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label>GST No.</label>
+              <input
+                className="form-control"
+                placeholder="GST number"
+                value={form.client_gst_no}
+                onChange={(e) => updateField("client_gst_no", e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label>State (e.g. Haryana Code: 06)</label>
+              <input
+                className="form-control"
+                placeholder="State and code"
+                value={form.client_state}
+                onChange={(e) => updateField("client_state", e.target.value)}
+              />
+            </div>
+            <div className="form-group form-full">
+              <label>Email</label>
+              <input
+                type="email"
+                className="form-control"
+                placeholder="Email"
+                value={form.client_email}
+                onChange={(e) => updateField("client_email", e.target.value)}
               />
             </div>
           </div>
         </div>
 
-        {/* Section 2 — Invoice Items */}
+        {/* Item Details */}
         <div className="form-section" style={{ marginBottom: 16 }}>
-          <h3 className="form-section-title">
-            <FiShoppingCart /> Invoice Items
-          </h3>
-
-          <div className="items-section">
-            <div className="items-header">
-              <span>Product / Service</span>
-              <span>Qty</span>
-              <span>Unit Price (₹)</span>
-              <span style={{ textAlign: "right" }}>Total</span>
-              <span></span>
-            </div>
-
-            {form.items.map((item, idx) => (
-              <div className="items-row" key={idx}>
-                <div className="item-product-wrap">
-                  <input
-                    className="form-control"
-                    placeholder="Product name *"
-                    value={item.product_name}
-                    onChange={(e) =>
-                      updateItem(idx, "product_name", e.target.value)
-                    }
-                  />
-                  <input
-                    className="form-control"
-                    placeholder="Description (optional)"
-                    value={item.description}
-                    onChange={(e) =>
-                      updateItem(idx, "description", e.target.value)
-                    }
-                    style={{ fontSize: 12, marginTop: 4 }}
-                  />
-                </div>
-                <input
-                  type="number"
-                  className="form-control"
-                  min={1}
-                  value={item.quantity}
-                  onChange={(e) =>
-                    updateItem(idx, "quantity", e.target.value)
-                  }
-                />
-                <input
-                  type="number"
-                  className="form-control"
-                  min={0}
-                  step="0.01"
-                  value={item.unit_price}
-                  onChange={(e) =>
-                    updateItem(idx, "unit_price", e.target.value)
-                  }
-                />
-                <div className="item-total">
-                  {formatINR(
-                    Number(item.quantity) * Number(item.unit_price)
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="remove-item-btn"
-                  onClick={() => removeItem(idx)}
-                  disabled={form.items.length === 1}
-                  style={{
-                    opacity: form.items.length === 1 ? 0 : 1,
-                    pointerEvents: form.items.length === 1 ? "none" : "auto",
-                  }}
-                >
-                  <FiTrash2 />
-                </button>
-              </div>
-            ))}
-
-            <button type="button" className="add-item-btn" onClick={addItem}>
-              <FiPlus /> Add Item
+          <div className="inv-items-title-row">
+            <h3 className="form-section-title" style={{ margin: 0, border: "none", padding: 0 }}>
+              Item Details
+            </h3>
+            <button type="button" className="inv-add-item-link" onClick={addItem}>
+              + Add item
             </button>
           </div>
+          <p className="inv-items-hint">
+            Pick a product to fill MRP, rate (DP), and HSN; you can still edit all columns.
+          </p>
 
-          {/* Totals */}
-          <div className="totals-wrap">
+          <div className="gst-tbl-wrap">
+            <table className="gst-tbl">
+              <thead>
+                <tr>
+                  <th>SR. NO.</th>
+                  <th>QTY</th>
+                  <th>ITEM NAME</th>
+                  <th>HSN NO.</th>
+                  <th>BATCH</th>
+                  <th>MFG</th>
+                  <th>EXPIRY</th>
+                  <th>MRP</th>
+                  <th>RATE</th>
+                  <th>SGST %</th>
+                  <th>SGST AMT</th>
+                  <th>CGST %</th>
+                  <th>CGST AMT</th>
+                  <th>IGST %</th>
+                  <th>IGST AMT</th>
+                  <th>TOTAL AMOUNT</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.items.map((item, idx) => {
+                  const c = calcItem(item);
+                  return (
+                    <tr key={idx}>
+                      <td className="gst-td-center">{idx + 1}</td>
+                      <td>
+                        <input type="number" className="gst-inp" min={1} style={{ width: 52 }} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} />
+                      </td>
+                      <td>
+                        <input className="gst-inp" style={{ width: 130 }} placeholder="Item name" value={item.product_name} onChange={(e) => updateItem(idx, "product_name", e.target.value)} />
+                      </td>
+                      <td>
+                        <input className="gst-inp" style={{ width: 68 }} placeholder="HSN" value={item.hsn_no} onChange={(e) => updateItem(idx, "hsn_no", e.target.value)} />
+                      </td>
+                      <td>
+                        <input className="gst-inp" style={{ width: 68 }} placeholder="Batch" value={item.batch} onChange={(e) => updateItem(idx, "batch", e.target.value)} />
+                      </td>
+                      <td>
+                        <input className="gst-inp" style={{ width: 80 }} placeholder="MM/YYYY" value={item.mfg_date} onChange={(e) => updateItem(idx, "mfg_date", e.target.value)} />
+                      </td>
+                      <td>
+                        <input className="gst-inp" style={{ width: 80 }} placeholder="MM/YYYY" value={item.expiry_date} onChange={(e) => updateItem(idx, "expiry_date", e.target.value)} />
+                      </td>
+                      <td>
+                        <input type="number" className="gst-inp" style={{ width: 70 }} min={0} step="0.01" value={item.mrp} onChange={(e) => updateItem(idx, "mrp", e.target.value)} />
+                      </td>
+                      <td>
+                        <input type="number" className="gst-inp" style={{ width: 70 }} min={0} step="0.01" value={item.unit_price} onChange={(e) => updateItem(idx, "unit_price", e.target.value)} />
+                      </td>
+                      <td>
+                        <input type="number" className="gst-inp" style={{ width: 56 }} min={0} step="0.1" value={item.sgst_percent} onChange={(e) => updateItem(idx, "sgst_percent", e.target.value)} />
+                      </td>
+                      <td className="gst-calc">{fmt(c.sgst)}</td>
+                      <td>
+                        <input type="number" className="gst-inp" style={{ width: 56 }} min={0} step="0.1" value={item.cgst_percent} onChange={(e) => updateItem(idx, "cgst_percent", e.target.value)} />
+                      </td>
+                      <td className="gst-calc">{fmt(c.cgst)}</td>
+                      <td>
+                        <input type="number" className="gst-inp" style={{ width: 56 }} min={0} step="0.1" value={item.igst_percent} onChange={(e) => updateItem(idx, "igst_percent", e.target.value)} />
+                      </td>
+                      <td className="gst-calc">{fmt(c.igst)}</td>
+                      <td className="gst-calc gst-total">{fmt(c.total)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="remove-item-btn"
+                          onClick={() => removeItem(idx)}
+                          disabled={form.items.length === 1}
+                          style={{ opacity: form.items.length === 1 ? 0 : 1, pointerEvents: form.items.length === 1 ? "none" : "auto" }}
+                        >
+                          <FiTrash2 />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Amount Summary */}
+          <div className="totals-wrap" style={{ marginTop: 16 }}>
             <div className="totals-box">
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: "var(--text-dark)" }}>
+                Amount Summary
+              </div>
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>
+                Per line: (Qty × Rate) + SGST + CGST + IGST = Total Amount
+              </p>
               <div className="totals-row">
-                <span>Subtotal</span>
-                <span>{formatINR(subtotal)}</span>
+                <span>Base (Qty × Rate, excl. GST):</span>
+                <span>{fmt(totals.base)}</span>
               </div>
               <div className="totals-row">
-                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  Tax
-                  <input
-                    type="number"
-                    className="tax-input-inline"
-                    min={0}
-                    max={100}
-                    step="0.1"
-                    value={form.tax_percent}
-                    onChange={(e) => updateField("tax_percent", e.target.value)}
-                  />
-                  %
-                </span>
-                <span>{formatINR(taxAmount)}</span>
+                <span>Total GST (SGST + CGST + IGST):</span>
+                <span>{fmt(totals.sgst + totals.cgst + totals.igst)}</span>
               </div>
               <div className="totals-row total">
-                <span>Total Amount</span>
-                <span>{formatINR(total)}</span>
+                <span>Total Amount (incl. GST):</span>
+                <span>{fmt(totals.total)}</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Section 3 — Payment Info */}
-        <div className="form-section" style={{ marginBottom: 16 }}>
-          <h3 className="form-section-title">
-            <FiCreditCard /> Payment Information
-          </h3>
-          <div className="invoice-form-grid">
-            <div className="form-group">
-              <label>Payment Service</label>
-              <select
-                className="form-control"
-                value={form.payment_service}
-                onChange={(e) =>
-                  updateField("payment_service", e.target.value)
-                }
-              >
-                <option value="">— Select —</option>
-                <option value="UPI">UPI</option>
-                <option value="BankTransfer">Bank Transfer</option>
-                <option value="Cash">Cash</option>
-                <option value="Card">Card</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            {form.payment_service === "Other" && (
-              <div className="form-group">
-                <label>Specify Service</label>
-                <input
-                  className="form-control"
-                  placeholder="e.g. Paytm, PhonePe..."
-                  value={form.other_payment_service}
-                  onChange={(e) =>
-                    updateField("other_payment_service", e.target.value)
-                  }
-                />
-              </div>
-            )}
-            <div className="form-group">
-              <label>Transaction ID</label>
-              <input
-                className="form-control"
-                placeholder="Transaction reference"
-                value={form.transaction_id}
-                onChange={(e) =>
-                  updateField("transaction_id", e.target.value)
-                }
-              />
-            </div>
-            <div className="form-group">
-              <label>Payment Screenshot</label>
-              <input
-                type="file"
-                className="form-control"
-                accept="image/*,.pdf"
-                onChange={(e) => setScreenshotFile(e.target.files[0])}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 4 — Additional Info */}
-        <div className="form-section" style={{ marginBottom: 16 }}>
-          <h3 className="form-section-title">
-            <FiInfo /> Additional Information
-          </h3>
-          <div className="form-group">
-            <label>Remarks</label>
-            <textarea
-              className="form-control"
-              rows={3}
-              placeholder="Any additional notes or remarks..."
-              value={form.remarks}
-              onChange={(e) => updateField("remarks", e.target.value)}
-            />
           </div>
         </div>
 
         {/* Actions */}
-        <div className="form-actions">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => navigate("/invoices")}
-          >
-            Cancel
+        <div className="inv-create-actions">
+          <button type="button" className="btn btn-secondary" onClick={openPreview}>
+            <FiEye /> Preview Invoice
           </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-          >
-            {loading ? "Creating..." : "Create Invoice"}
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? "Creating..." : "Save & issue"}
           </button>
         </div>
       </form>

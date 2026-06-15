@@ -1,14 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  FiArrowLeft,
-  FiEdit2,
-  FiTrash2,
-  FiDownload,
-} from "react-icons/fi";
+import { FiArrowLeft, FiEdit2, FiTrash2, FiDownload, FiPrinter } from "react-icons/fi";
 import toast from "react-hot-toast";
 import api from "../../api/axios.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import InvoiceTemplate from "./InvoiceTemplate.jsx";
 import "./Invoices.css";
 
 const STATUS_COLORS = {
@@ -25,6 +21,9 @@ const PAYMENT_COLORS = {
   Failed: "badge-failed",
 };
 
+const fmt = (val) =>
+  `₹${Number(val || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
 const InvoiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -32,6 +31,7 @@ const InvoiceDetail = () => {
 
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [printOpen, setPrintOpen] = useState(false);
 
   useEffect(() => {
     const fetchInvoice = async () => {
@@ -59,9 +59,6 @@ const InvoiceDetail = () => {
     }
   };
 
-  const formatINR = (val) =>
-    `₹${Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-
   const formatDate = (dateStr) =>
     new Date(dateStr).toLocaleDateString("en-IN", {
       day: "2-digit",
@@ -83,6 +80,14 @@ const InvoiceDetail = () => {
 
   return (
     <div className="page-container">
+      {printOpen && (
+        <InvoiceTemplate
+          invoice={invoice}
+          onClose={() => setPrintOpen(false)}
+          autoPrint={false}
+        />
+      )}
+
       {/* Header Bar */}
       <div className="invoice-header-bar">
         <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
@@ -94,18 +99,10 @@ const InvoiceDetail = () => {
               {invoice.invoice_number}
             </h1>
             <div className="invoice-title-badges">
-              <span
-                className={`badge ${
-                  STATUS_COLORS[invoice.order_status] || "badge-pending"
-                }`}
-              >
+              <span className={`badge ${STATUS_COLORS[invoice.order_status] || "badge-pending"}`}>
                 {invoice.order_status}
               </span>
-              <span
-                className={`badge ${
-                  PAYMENT_COLORS[invoice.payment_status] || "badge-pending"
-                }`}
-              >
+              <span className={`badge ${PAYMENT_COLORS[invoice.payment_status] || "badge-pending"}`}>
                 {invoice.payment_status}
               </span>
             </div>
@@ -113,17 +110,17 @@ const InvoiceDetail = () => {
         </div>
 
         <div className="header-actions">
-          <Link
-            to={`/invoices/${id}/edit`}
+          <button
             className="btn btn-ghost btn-sm"
+            onClick={() => setPrintOpen(true)}
           >
+            <FiPrinter /> Print
+          </button>
+          <Link to={`/invoices/${id}/edit`} className="btn btn-ghost btn-sm">
             <FiEdit2 /> Edit
           </Link>
           {user?.role === "admin" && (
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={handleDelete}
-            >
+            <button className="btn btn-danger btn-sm" onClick={handleDelete}>
               <FiTrash2 /> Delete
             </button>
           )}
@@ -158,6 +155,18 @@ const InvoiceDetail = () => {
                 <label>Purchase Type</label>
                 <span className="purchase-type">{invoice.purchase_type}</span>
               </div>
+              {invoice.client_gst_no && (
+                <div className="detail-item">
+                  <label>GST No.</label>
+                  <span>{invoice.client_gst_no}</span>
+                </div>
+              )}
+              {invoice.client_state && (
+                <div className="detail-item">
+                  <label>State</label>
+                  <span>{invoice.client_state}</span>
+                </div>
+              )}
               {invoice.shipping_address && (
                 <div className="detail-item" style={{ gridColumn: "1 / -1" }}>
                   <label>Shipping Address</label>
@@ -174,25 +183,50 @@ const InvoiceDetail = () => {
               <table className="detail-items-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "2fr" }}>Product / Service</th>
-                    <th style={{ width: 80 }}>Qty</th>
-                    <th style={{ width: 120 }}>Unit Price</th>
-                    <th style={{ width: 120, textAlign: "right" }}>Total</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Rate</th>
+                    <th>SGST</th>
+                    <th>CGST</th>
+                    <th>IGST</th>
+                    <th style={{ textAlign: "right" }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoice.items?.map((item, idx) => (
                     <tr key={idx}>
                       <td>
-                        <div>{item.product_name}</div>
-                        {item.description && (
-                          <div className="item-desc">{item.description}</div>
+                        <div style={{ fontWeight: 500 }}>{item.product_name}</div>
+                        {item.hsn_no && (
+                          <div className="item-desc">HSN: {item.hsn_no}</div>
+                        )}
+                        {item.batch && (
+                          <div className="item-desc">Batch: {item.batch}</div>
+                        )}
+                        {(item.mfg_date || item.expiry_date) && (
+                          <div className="item-desc">
+                            {item.mfg_date && `Mfg: ${item.mfg_date}`}
+                            {item.mfg_date && item.expiry_date && " | "}
+                            {item.expiry_date && `Exp: ${item.expiry_date}`}
+                          </div>
                         )}
                       </td>
                       <td>{item.quantity}</td>
-                      <td>{formatINR(item.unit_price)}</td>
+                      <td>{fmt(item.unit_price)}</td>
+                      <td>
+                        <span className="item-desc">{item.sgst_percent ?? 0}%</span>
+                        <div>{fmt(item.sgst_amount)}</div>
+                      </td>
+                      <td>
+                        <span className="item-desc">{item.cgst_percent ?? 0}%</span>
+                        <div>{fmt(item.cgst_amount)}</div>
+                      </td>
+                      <td>
+                        <span className="item-desc">{item.igst_percent ?? 0}%</span>
+                        <div>{fmt(item.igst_amount)}</div>
+                      </td>
                       <td style={{ textAlign: "right", fontWeight: 600 }}>
-                        {formatINR(item.total)}
+                        {fmt(item.total)}
                       </td>
                     </tr>
                   ))}
@@ -204,22 +238,21 @@ const InvoiceDetail = () => {
             <div className="totals-wrap">
               <div className="totals-box">
                 <div className="totals-row">
-                  <span>Subtotal</span>
-                  <span>{formatINR(invoice.subtotal)}</span>
+                  <span>Base Amount (Excl. GST)</span>
+                  <span>{fmt(invoice.base_amount ?? invoice.subtotal)}</span>
                 </div>
                 <div className="totals-row">
-                  <span>Tax ({invoice.tax_percent}%)</span>
-                  <span>{formatINR(invoice.tax_amount)}</span>
+                  <span>Total GST (SGST + CGST + IGST)</span>
+                  <span>{fmt(invoice.total_gst ?? invoice.tax_amount)}</span>
                 </div>
                 <div className="totals-row total">
-                  <span>Total Amount</span>
-                  <span>{formatINR(invoice.total_amount)}</span>
+                  <span>Total Amount (Incl. GST)</span>
+                  <span>{fmt(invoice.total_amount)}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Remarks */}
           {invoice.remarks && (
             <div className="form-section">
               <h3 className="form-section-title">Remarks</h3>
@@ -232,7 +265,6 @@ const InvoiceDetail = () => {
 
         {/* Right Column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Invoice Details */}
           <div className="form-section">
             <h3 className="form-section-title">Invoice Details</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -250,24 +282,17 @@ const InvoiceDetail = () => {
               </div>
               <div className="detail-item">
                 <label>Created By</label>
-                <span>
-                  {invoice.created_by?.name || "—"}
-                </span>
+                <span>{invoice.created_by?.name || "—"}</span>
               </div>
             </div>
           </div>
 
-          {/* Payment Info */}
           <div className="form-section">
             <h3 className="form-section-title">Payment Info</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div className="detail-item">
                 <label>Payment Status</label>
-                <span
-                  className={`badge ${
-                    PAYMENT_COLORS[invoice.payment_status] || "badge-pending"
-                  }`}
-                >
+                <span className={`badge ${PAYMENT_COLORS[invoice.payment_status] || "badge-pending"}`}>
                   {invoice.payment_status}
                 </span>
               </div>

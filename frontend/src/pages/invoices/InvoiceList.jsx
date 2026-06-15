@@ -1,25 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import {
-  FiSearch,
-  FiRefreshCw,
-  FiEye,
-  FiEdit2,
-  FiTrash2,
-  FiPlusCircle,
-} from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
+import { FiPlusCircle, FiRefreshCw } from "react-icons/fi";
 import toast from "react-hot-toast";
 import api from "../../api/axios.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import InvoiceTemplate from "./InvoiceTemplate.jsx";
+import { BUSINESS } from "../../config/business.js";
 import "./Invoices.css";
-
-const STATUS_COLORS = {
-  Pending: "badge-pending",
-  Processing: "badge-processing",
-  Shipped: "badge-shipped",
-  Delivered: "badge-delivered",
-  Cancelled: "badge-cancelled",
-};
 
 const PAYMENT_COLORS = {
   Pending: "badge-pending",
@@ -33,38 +20,32 @@ const InvoiceList = () => {
 
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 1,
-  });
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [printInvoice, setPrintInvoice] = useState(null);
+  const [printSmall, setPrintSmall] = useState(false);
+  const [stats, setStats] = useState({ totalIssued: 0, totalCancelled: 0, totalGross: 0 });
+  const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
 
   const fetchInvoices = useCallback(
     async (page = 1) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({
-          page,
-          limit: 10,
-        });
-        if (search) params.set("search", search);
+        const params = new URLSearchParams({ page, limit: rowsPerPage });
         if (statusFilter) params.set("status", statusFilter);
 
         const res = await api.get(`/invoices?${params.toString()}`);
-        const { invoices: list, pagination: pg } = res.data.data;
+        const { invoices: list, pagination: pg, stats: st } = res.data.data;
         setInvoices(list);
         setPagination(pg);
+        if (st) setStats(st);
       } catch (error) {
-        toast.error(
-          error.response?.data?.message || "Failed to fetch invoices."
-        );
+        toast.error(error.response?.data?.message || "Failed to fetch invoices.");
       } finally {
         setLoading(false);
       }
     },
-    [search, statusFilter]
+    [statusFilter, rowsPerPage]
   );
 
   useEffect(() => {
@@ -83,66 +64,99 @@ const InvoiceList = () => {
   };
 
   const formatAmount = (amount) =>
-    `₹${Number(amount).toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-    })}`;
+    `₹${Number(amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
-  const formatDate = (dateStr) =>
-    new Date(dateStr).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    return `${String(d.getDate()).padStart(2, "0")}-${d.toLocaleString("en-IN", { month: "short" })}-${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+
+  const getDocStatus = (inv) =>
+    inv.order_status === "Cancelled" ? "Cancelled" : "Issued";
+
+  const rangeStart = (pagination.page - 1) * rowsPerPage + 1;
+  const rangeEnd = Math.min(pagination.page * rowsPerPage, pagination.total);
 
   return (
     <div className="page-container">
+      {printInvoice && (
+        <InvoiceTemplate
+          invoice={printInvoice}
+          onClose={() => { setPrintInvoice(null); setPrintSmall(false); }}
+          autoPrint={true}
+          small={printSmall}
+        />
+      )}
+
       {/* Header */}
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Invoices</h1>
-          <p className="page-subtitle">{pagination.total} invoices total</p>
-        </div>
-        <Link to="/invoices/create" className="btn btn-primary">
-          <FiPlusCircle />
-          New Invoice
-        </Link>
+        <h1 className="page-title">Invoices</h1>
+        <button className="btn btn-primary" onClick={() => navigate("/invoices/create")}>
+          <FiPlusCircle /> New invoice
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="card filters-bar">
-        <div className="search-wrap">
-          <span className="search-icon">
-            <FiSearch />
-          </span>
-          <input
-            type="text"
-            className="form-control search-input"
-            placeholder="Search by invoice #, client name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      {/* Stats Cards */}
+      <div className="inv-stats-row">
+        <div className="inv-stat-card">
+          <div className="inv-stat-value">{stats.totalIssued}</div>
+          <div className="inv-stat-label">Total issued</div>
+          <div className="inv-stat-note">Not scoped by status filter</div>
+        </div>
+        <div className="inv-stat-card">
+          <div className="inv-stat-value">{stats.totalCancelled}</div>
+          <div className="inv-stat-label">Total cancelled</div>
+          <div className="inv-stat-note">Not scoped by status filter</div>
+        </div>
+        <div className="inv-stat-card">
+          <div className="inv-stat-value inv-stat-gross">{formatAmount(stats.totalGross)}</div>
+          <div className="inv-stat-label">Total gross</div>
+          <div className="inv-stat-note">For current filter · all pages</div>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="inv-filter-bar">
+        <div className="inv-filter-left">
+          <label className="inv-filter-label">Status</label>
+          <select
+            className="form-control inv-filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">All statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Processing">Processing</option>
+            <option value="Shipped">Shipped</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+
+          <label className="inv-filter-label">Rows</label>
+          <select
+            className="form-control inv-filter-select"
+            value={rowsPerPage}
+            onChange={(e) => { setRowsPerPage(Number(e.target.value)); }}
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => fetchInvoices(pagination.page)}
+            title="Refresh"
+          >
+            <FiRefreshCw size={14} />
+          </button>
         </div>
 
-        <select
-          className="form-control filter-select"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="">All Statuses</option>
-          <option value="Pending">Pending</option>
-          <option value="Processing">Processing</option>
-          <option value="Shipped">Shipped</option>
-          <option value="Delivered">Delivered</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
-
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => fetchInvoices(pagination.page)}
-          title="Refresh"
-        >
-          <FiRefreshCw />
-        </button>
+        {pagination.total > 0 && (
+          <div className="inv-filter-count">
+            {rangeStart}–{rangeEnd} of {pagination.total}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -153,100 +167,70 @@ const InvoiceList = () => {
           </div>
         ) : invoices.length === 0 ? (
           <div className="empty-state">
-            <FiSearch size={40} />
             <p>No invoices found</p>
-            <Link to="/invoices/create" className="btn btn-primary btn-sm">
+            <button className="btn btn-primary btn-sm" onClick={() => navigate("/invoices/create")}>
               <FiPlusCircle /> Create Invoice
-            </Link>
+            </button>
           </div>
         ) : (
           <>
             <div className="table-container">
-              <table>
+              <table className="inv-list-table">
                 <thead>
                   <tr>
-                    <th>Invoice #</th>
-                    <th>Client</th>
-                    <th>Amount (₹)</th>
-                    <th>Order Status</th>
-                    <th>Payment</th>
+                    <th>#</th>
+                    <th>Invoice ID</th>
+                    <th>Business</th>
                     <th>Type</th>
-                    <th>Date</th>
+                    <th>Receiver</th>
+                    <th>Issued on</th>
+                    <th>Status</th>
+                    <th>Amount</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map((inv) => (
+                  {invoices.map((inv, idx) => (
                     <tr key={inv._id}>
-                      <td>
-                        <span className="invoice-num">{inv.invoice_number}</span>
-                      </td>
-                      <td>
-                        <div className="client-cell">
-                          <span className="client-name">{inv.client_name}</span>
-                          {inv.client_email && (
-                            <span className="client-email">
-                              {inv.client_email}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <span className="amount-cell">
-                          {formatAmount(inv.total_amount)}
-                        </span>
-                      </td>
+                      <td className="inv-list-idx">{rangeStart + idx}</td>
                       <td>
                         <span
-                          className={`badge ${
-                            STATUS_COLORS[inv.order_status] || "badge-pending"
-                          }`}
+                          className="inv-list-id-link"
+                          onClick={() => navigate(`/invoices/${inv._id}`)}
                         >
-                          {inv.order_status}
+                          #{inv.invoice_number}
                         </span>
                       </td>
+                      <td className="inv-list-cell">{BUSINESS.name}</td>
+                      <td className="inv-list-cell">{inv.document_type || "Invoice"}</td>
+                      <td className="inv-list-cell">{inv.client_name || "—"}</td>
+                      <td className="inv-list-cell inv-list-date">{formatDate(inv.createdAt)}</td>
                       <td>
-                        <span
-                          className={`badge ${
-                            PAYMENT_COLORS[inv.payment_status] || "badge-pending"
-                          }`}
-                        >
-                          {inv.payment_status}
+                        <span className={`inv-doc-status ${getDocStatus(inv) === "Issued" ? "status-issued" : "status-cancelled"}`}>
+                          {getDocStatus(inv)}
                         </span>
                       </td>
+                      <td className="inv-list-amount">{formatAmount(inv.total_amount)}</td>
                       <td>
-                        <span className="purchase-type">{inv.purchase_type}</span>
-                      </td>
-                      <td>
-                        <span className="date-cell">
-                          {formatDate(inv.createdAt)}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-btns">
+                        <div className="inv-list-actions">
                           <button
-                            className="icon-btn view"
-                            onClick={() => navigate(`/invoices/${inv._id}`)}
-                            title="View"
+                            className="print-link"
+                            onClick={() => { setPrintSmall(false); setPrintInvoice(inv); }}
                           >
-                            <FiEye />
+                            🖨 Print (A4)
                           </button>
                           <button
-                            className="icon-btn edit"
-                            onClick={() =>
-                              navigate(`/invoices/${inv._id}/edit`)
-                            }
-                            title="Edit"
+                            className="print-link"
+                            onClick={() => { setPrintSmall(true); setPrintInvoice(inv); }}
                           >
-                            <FiEdit2 />
+                            🖨 Print (Small)
                           </button>
                           {user?.role === "admin" && (
                             <button
-                              className="icon-btn delete"
+                              className="print-link print-link-danger"
                               onClick={() => handleDelete(inv._id)}
-                              title="Delete"
                             >
-                              <FiTrash2 />
+                              Delete
                             </button>
                           )}
                         </div>
