@@ -1,10 +1,23 @@
 import mongoose from "mongoose";
 
+const round2 = (v) => Math.round(v * 100) / 100;
+
 const itemSchema = new mongoose.Schema({
   product_name: { type: String, required: true },
   description: { type: String, default: "" },
+  hsn_no: { type: String, default: "" },
+  batch: { type: String, default: "" },
+  mfg_date: { type: String, default: "" },
+  expiry_date: { type: String, default: "" },
+  mrp: { type: Number, default: 0 },
   quantity: { type: Number, required: true, min: 1 },
   unit_price: { type: Number, required: true, min: 0 },
+  sgst_percent: { type: Number, default: 2.5 },
+  sgst_amount: { type: Number, default: 0 },
+  cgst_percent: { type: Number, default: 2.5 },
+  cgst_amount: { type: Number, default: 0 },
+  igst_percent: { type: Number, default: 0 },
+  igst_amount: { type: Number, default: 0 },
   total: { type: Number, default: 0 },
 });
 
@@ -14,8 +27,12 @@ const invoiceSchema = new mongoose.Schema(
     client_name: { type: String, required: true },
     client_email: { type: String, default: "" },
     client_phone: { type: String, default: "" },
+    client_gst_no: { type: String, default: "" },
+    client_state: { type: String, default: "" },
     shipping_address: { type: String, default: "" },
     items: [itemSchema],
+    base_amount: { type: Number, default: 0 },
+    total_gst: { type: Number, default: 0 },
     subtotal: { type: Number, default: 0 },
     tax_percent: { type: Number, default: 0 },
     tax_amount: { type: Number, default: 0 },
@@ -34,6 +51,7 @@ const invoiceSchema = new mongoose.Schema(
     transaction_id: { type: String, default: "" },
     payment_service: { type: String, default: "" },
     other_payment_service: { type: String, default: "" },
+    document_type: { type: String, enum: ["Invoice", "Quotation"], default: "Invoice" },
     purchase_type: { type: String, default: "RePurchase" },
     remarks: { type: String, default: "" },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -55,11 +73,18 @@ invoiceSchema.pre("save", function (next) {
 
   if (this.items && this.items.length > 0) {
     this.items.forEach((item) => {
-      item.total = item.quantity * item.unit_price;
+      const base = item.quantity * item.unit_price;
+      item.sgst_amount = round2(base * (item.sgst_percent || 0) / 100);
+      item.cgst_amount = round2(base * (item.cgst_percent || 0) / 100);
+      item.igst_amount = round2(base * (item.igst_percent || 0) / 100);
+      item.total = round2(base + item.sgst_amount + item.cgst_amount + item.igst_amount);
     });
-    this.subtotal = this.items.reduce((sum, i) => sum + i.total, 0);
-    this.tax_amount = (this.subtotal * (this.tax_percent || 0)) / 100;
-    this.total_amount = this.subtotal + this.tax_amount;
+
+    this.base_amount = round2(this.items.reduce((s, i) => s + i.quantity * i.unit_price, 0));
+    this.total_gst = round2(this.items.reduce((s, i) => s + i.sgst_amount + i.cgst_amount + i.igst_amount, 0));
+    this.total_amount = round2(this.base_amount + this.total_gst);
+    this.subtotal = this.base_amount;
+    this.tax_amount = this.total_gst;
   }
 
   next();

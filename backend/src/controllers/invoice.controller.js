@@ -49,9 +49,12 @@ export const createInvoice = async (req, res) => {
       client_name,
       client_email,
       client_phone,
+      client_gst_no,
+      client_state,
       shipping_address,
       items,
       tax_percent,
+      document_type,
       purchase_type,
       payment_service,
       other_payment_service,
@@ -82,8 +85,11 @@ export const createInvoice = async (req, res) => {
       client_name,
       client_email: client_email || "",
       client_phone: client_phone || "",
+      client_gst_no: client_gst_no || "",
+      client_state: client_state || "",
       shipping_address: shipping_address || "",
       items,
+      document_type: document_type || "Invoice",
       tax_percent: Number(tax_percent) || 0,
       purchase_type: purchase_type || "RePurchase",
       payment_service: payment_service || "",
@@ -151,11 +157,26 @@ export const getAllInvoices = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
+    // Global stats (not scoped by status filter)
+    const baseFilter = { deleted_at: null };
+    if (req.user.role !== "admin") baseFilter.created_by = req.user._id;
+
+    const [totalIssued, totalCancelled, grossResult] = await Promise.all([
+      Invoice.countDocuments({ ...baseFilter, order_status: { $ne: "Cancelled" } }),
+      Invoice.countDocuments({ ...baseFilter, order_status: "Cancelled" }),
+      Invoice.aggregate([
+        { $match: filter },
+        { $group: { _id: null, gross: { $sum: "$total_amount" } } },
+      ]),
+    ]);
+    const totalGross = grossResult[0]?.gross || 0;
+
     return res.status(200).json({
       status: "success",
       message: "Invoices fetched successfully.",
       data: {
         invoices,
+        stats: { totalIssued, totalCancelled, totalGross },
         pagination: {
           total,
           page,
@@ -249,8 +270,11 @@ export const updateInvoice = async (req, res) => {
       "client_name",
       "client_email",
       "client_phone",
+      "client_gst_no",
+      "client_state",
       "shipping_address",
       "items",
+      "document_type",
       "tax_percent",
       "order_status",
       "payment_status",
