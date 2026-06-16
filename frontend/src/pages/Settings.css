@@ -1,0 +1,40 @@
+.settings-card {
+  margin-bottom: 20px;
+  padding: 24px;
+}
+
+.settings-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0 0 4px 0;
+}
+
+.settings-section-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 20px 0;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.settings-terms-area {
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.settings-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 6px 0 0;
+}
+
+.settings-save-footer {
+  text-align: right;
+  padding-bottom: 32px;
+}

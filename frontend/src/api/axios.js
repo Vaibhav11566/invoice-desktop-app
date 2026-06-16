@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // ⬇️ After deploying to Render, replace this with your actual Render URL
-const RENDER_API_URL = "https://invoice-desktop-app.onrender.com/api";
+const RENDER_API_URL = "https://invoice-desktop-app-1.onrender.com/api";
 
 // Dev: Vite proxies /api → http://localhost:5001
 // Production (file:// protocol): calls Render cloud API

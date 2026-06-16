@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { FiFileText, FiPlusCircle, FiLogOut } from "react-icons/fi";
+import { FiFileText, FiPlusCircle, FiLogOut, FiSettings } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext.jsx";
 import "./Layout.css";
@@ -45,6 +45,16 @@ const Layout = () => {
           >
             <FiPlusCircle className="nav-icon" />
             <span>Create Invoice</span>
+          </NavLink>
+
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `nav-item ${isActive ? "active" : ""}`
+            }
+          >
+            <FiSettings className="nav-icon" />
+            <span>Settings</span>
           </NavLink>
         </nav>
 

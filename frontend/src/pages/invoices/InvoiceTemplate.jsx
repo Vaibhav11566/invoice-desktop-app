@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { FiX, FiPrinter } from "react-icons/fi";
-import { BUSINESS, INVOICE_TERMS } from "../../config/business.js";
+import { useBusiness } from "../../context/BusinessContext.jsx";
 import "./Invoices.css";
 
 const fmt = (val) =>
@@ -22,6 +22,7 @@ const fmtDate = (dateStr) => {
 
 // The actual printable invoice document
 export const InvoiceDocument = ({ invoice }) => {
+  const { business, terms } = useBusiness();
   const items = invoice.items || [];
 
   return (
@@ -29,16 +30,16 @@ export const InvoiceDocument = ({ invoice }) => {
       {/* Header */}
       <div className="inv-header">
         <div className="inv-biz-section">
-          {BUSINESS.logo && (
-            <img src={BUSINESS.logo} className="inv-logo" alt="logo" />
+          {business.logo && (
+            <img src={business.logo} className="inv-logo" alt="logo" />
           )}
           <div className="inv-biz-info">
-            <div className="inv-biz-name">{BUSINESS.name}</div>
-            <div className="inv-biz-line">{BUSINESS.address}</div>
-            <div className="inv-biz-line">Phone No.: {BUSINESS.phone}</div>
-            <div className="inv-biz-line">E-mail: {BUSINESS.email}</div>
-            <div className="inv-biz-line">GSTIN: {BUSINESS.gstin}</div>
-            <div className="inv-biz-line">PAN No.: {BUSINESS.pan}</div>
+            <div className="inv-biz-name">{business.name || "—"}</div>
+            <div className="inv-biz-line">{business.address}</div>
+            <div className="inv-biz-line">Phone No.: {business.phone}</div>
+            <div className="inv-biz-line">E-mail: {business.email}</div>
+            <div className="inv-biz-line">GSTIN: {business.gstin}</div>
+            <div className="inv-biz-line">PAN No.: {business.pan}</div>
           </div>
         </div>
         <div className="inv-title-section">
@@ -164,7 +165,7 @@ export const InvoiceDocument = ({ invoice }) => {
       <div className="inv-terms">
         <div className="inv-terms-title">Terms and Conditions</div>
         <ul className="inv-terms-list">
-          {INVOICE_TERMS.map((t, i) => (
+          {terms.map((t, i) => (
             <li key={i}>{t}</li>
           ))}
         </ul>
@@ -173,7 +174,7 @@ export const InvoiceDocument = ({ invoice }) => {
       {/* Signature */}
       <div className="inv-sig">
         <div className="inv-sig-right">
-          <div>For: {BUSINESS.name}</div>
+          <div>For: {business.name || "—"}</div>
           <div className="inv-sig-blank" />
           <div>Auth. Signatory (Billing Executive):</div>
         </div>

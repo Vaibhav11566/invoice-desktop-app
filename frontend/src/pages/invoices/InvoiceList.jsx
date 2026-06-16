@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import api from "../../api/axios.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import InvoiceTemplate from "./InvoiceTemplate.jsx";
-import { BUSINESS } from "../../config/business.js";
+import { useBusiness } from "../../context/BusinessContext.jsx";
 import "./Invoices.css";
 
 const PAYMENT_COLORS = {
@@ -16,6 +16,7 @@ const PAYMENT_COLORS = {
 
 const InvoiceList = () => {
   const { user } = useAuth();
+  const { business } = useBusiness();
   const navigate = useNavigate();
 
   const [invoices, setInvoices] = useState([]);
@@ -201,7 +202,7 @@ const InvoiceList = () => {
                           #{inv.invoice_number}
                         </span>
                       </td>
-                      <td className="inv-list-cell">{BUSINESS.name}</td>
+                      <td className="inv-list-cell">{business.name}</td>
                       <td className="inv-list-cell">{inv.document_type || "Invoice"}</td>
                       <td className="inv-list-cell">{inv.client_name || "—"}</td>
                       <td className="inv-list-cell inv-list-date">{formatDate(inv.createdAt)}</td>

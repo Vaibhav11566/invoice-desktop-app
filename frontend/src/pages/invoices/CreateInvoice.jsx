@@ -4,7 +4,7 @@ import { FiPlus, FiTrash2, FiEye } from "react-icons/fi";
 import toast from "react-hot-toast";
 import api from "../../api/axios.js";
 import InvoiceTemplate from "./InvoiceTemplate.jsx";
-import { BUSINESS } from "../../config/business.js";
+import { useBusiness } from "../../context/BusinessContext.jsx";
 import "./Invoices.css";
 
 const emptyItem = () => ({
@@ -43,6 +43,7 @@ const todayStr = () =>
 
 const CreateInvoice = () => {
   const navigate = useNavigate();
+  const { business } = useBusiness();
   const [loading, setLoading] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState(null);
 
@@ -158,7 +159,7 @@ const CreateInvoice = () => {
         <div className="inv-create-biz-selector">
           <span className="inv-create-biz-label">Business (seller on invoice):</span>
           <select className="form-control inv-create-biz-select">
-            <option>{BUSINESS.name}</option>
+            <option>{business.name}</option>
           </select>
         </div>
         <div className="inv-create-doctype">
@@ -186,16 +187,16 @@ const CreateInvoice = () => {
         {/* Business Info Card */}
         <div className="inv-biz-card">
           <div className="inv-biz-card-left">
-            {BUSINESS.logo && (
-              <img src={BUSINESS.logo} alt="logo" className="inv-biz-card-logo" />
+            {business.logo && (
+              <img src={business.logo} alt="logo" className="inv-biz-card-logo" />
             )}
             <div>
-              <div className="inv-biz-card-name">{BUSINESS.name}</div>
-              <div className="inv-biz-card-line">{BUSINESS.address}</div>
-              <div className="inv-biz-card-line">Phone No.: {BUSINESS.phone}</div>
-              <div className="inv-biz-card-line">E-mail: {BUSINESS.email}</div>
-              <div className="inv-biz-card-line">GSTIN: {BUSINESS.gstin}</div>
-              <div className="inv-biz-card-line">PAN No.: {BUSINESS.pan}</div>
+              <div className="inv-biz-card-name">{business.name}</div>
+              <div className="inv-biz-card-line">{business.address}</div>
+              <div className="inv-biz-card-line">Phone No.: {business.phone}</div>
+              <div className="inv-biz-card-line">E-mail: {business.email}</div>
+              <div className="inv-biz-card-line">GSTIN: {business.gstin}</div>
+              <div className="inv-biz-card-line">PAN No.: {business.pan}</div>
             </div>
           </div>
           <div className="inv-biz-card-right">
