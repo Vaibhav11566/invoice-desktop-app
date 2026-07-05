@@ -38,3 +38,36 @@
   text-align: right;
   padding-bottom: 32px;
 }
+
+.logo-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #f8fafc;
+}
+
+.logo-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  padding: 4px;
+}
+
+.logo-upload-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.logo-upload-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

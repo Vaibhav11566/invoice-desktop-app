@@ -2,6 +2,8 @@ import { createContext, useContext, useState } from "react";
 
 const DEFAULT_BUSINESS = {
   name: "",
+  tagline: "",
+  logo: "",
   address: "",
   phone: "",
   email: "",

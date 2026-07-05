@@ -1,6 +1,7 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, ipcMain, dialog } from "electron";
 import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,6 +48,27 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  ipcMain.handle("print-to-pdf", async (_event, invoiceNumber) => {
+    try {
+      const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: `${invoiceNumber || "invoice"}.pdf`,
+        filters: [{ name: "PDF Files", extensions: ["pdf"] }],
+      });
+      if (canceled || !filePath) return { success: false, reason: "canceled" };
+
+      const pdfData = await mainWindow.webContents.printToPDF({
+        pageSize: "A4",
+        printBackground: true,
+        landscape: false,
+        margins: { marginType: "none" },
+      });
+      fs.writeFileSync(filePath, pdfData);
+      return { success: true, filePath };
+    } catch (err) {
+      return { success: false, reason: err.message };
+    }
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -13,6 +13,14 @@ const Settings = () => {
   const handleBizChange = (field, value) =>
     setBizForm((prev) => ({ ...prev, [field]: value }));
 
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => handleBizChange("logo", ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = () => {
     saveBusiness(bizForm);
     const parsed = termsText
@@ -50,6 +58,45 @@ const Settings = () => {
               value={bizForm.name}
               onChange={(e) => handleBizChange("name", e.target.value)}
             />
+          </div>
+
+          <div className="form-group form-full">
+            <label>Tagline / Business Type</label>
+            <input
+              className="form-control"
+              placeholder="e.g. Pharmaceutical Distributors"
+              value={bizForm.tagline || ""}
+              onChange={(e) => handleBizChange("tagline", e.target.value)}
+            />
+          </div>
+
+          <div className="form-group form-full">
+            <label>Business Logo</label>
+            <div className="logo-upload-row">
+              {bizForm.logo && (
+                <img src={bizForm.logo} alt="logo preview" className="logo-preview" />
+              )}
+              <div className="logo-upload-actions">
+                <label className="btn btn-secondary logo-upload-btn">
+                  {bizForm.logo ? "Change Logo" : "Upload Logo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={handleLogoUpload}
+                  />
+                </label>
+                {bizForm.logo && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => handleBizChange("logo", "")}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="settings-hint">PNG or JPG recommended. Shown on invoices.</p>
           </div>
 
           <div className="form-group form-full">
