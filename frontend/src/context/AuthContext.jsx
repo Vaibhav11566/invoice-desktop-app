@@ -7,18 +7,24 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user from localStorage on mount
+  // Verify token with backend on every app load
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
-      }
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+    api
+      .get("/auth/me")
+      .then((res) => {
+        setUser(res.data.data.user);
+      })
+      .catch(() => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (email, password) => {

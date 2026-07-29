@@ -39,8 +39,10 @@ const InvoiceDetail = () => {
         const res = await api.get(`/invoices/${id}`);
         setInvoice(res.data.data.invoice);
       } catch (error) {
-        toast.error(error.response?.data?.message || "Invoice not found.");
-        navigate("/invoices");
+        if (!error._isAuthError) {
+          toast.error(error.response?.data?.message || "Invoice not found.");
+          navigate("/invoices");
+        }
       } finally {
         setLoading(false);
       }
@@ -55,7 +57,9 @@ const InvoiceDetail = () => {
       toast.success("Invoice deleted.");
       navigate("/invoices");
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to delete invoice.");
+      if (!error._isAuthError) {
+        toast.error(error.response?.data?.message || "Failed to delete invoice.");
+      }
     }
   };
 

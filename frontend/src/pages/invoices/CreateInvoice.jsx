@@ -139,7 +139,9 @@ const CreateInvoice = () => {
       toast.success("Invoice created successfully!");
       navigate(`/invoices/${res.data.data.invoice._id}`);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to create invoice.");
+      if (!error._isAuthError) {
+        toast.error(error.response?.data?.message || "Failed to create invoice.");
+      }
     } finally {
       setLoading(false);
     }

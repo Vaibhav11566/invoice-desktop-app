@@ -41,7 +41,9 @@ const InvoiceList = () => {
         setPagination(pg);
         if (st) setStats(st);
       } catch (error) {
-        toast.error(error.response?.data?.message || "Failed to fetch invoices.");
+        if (!error._isAuthError) {
+          toast.error(error.response?.data?.message || "Failed to fetch invoices.");
+        }
       } finally {
         setLoading(false);
       }
@@ -60,7 +62,9 @@ const InvoiceList = () => {
       toast.success("Invoice deleted.");
       fetchInvoices(pagination.page);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to delete invoice.");
+      if (!error._isAuthError) {
+        toast.error(error.response?.data?.message || "Failed to delete invoice.");
+      }
     }
   };
 

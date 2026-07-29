@@ -1,13 +1,10 @@
 import axios from "axios";
 
-// ⬇️ After deploying to Render, replace this with your actual Render URL
-const RENDER_API_URL = "https://invoice-desktop-app-1.onrender.com/api";
-
 // Dev: Vite proxies /api → http://localhost:5001
-// Production (file:// protocol): calls Render cloud API
+// Production (file:// protocol): Electron spawns backend locally on 5001
 const baseURL =
   typeof window !== "undefined" && window.location.protocol === "file:"
-    ? RENDER_API_URL
+    ? "http://localhost:5001/api"
     : "/api";
 
 const api = axios.create({
@@ -34,7 +31,12 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.hash = "#/login";
+      // Only redirect if not already on login page
+      if (!window.location.hash.includes("/login")) {
+        window.location.hash = "#/login";
+      }
+      // Mark as auth error so components skip the toast
+      error._isAuthError = true;
     }
     return Promise.reject(error);
   }

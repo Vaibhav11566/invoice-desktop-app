@@ -110,8 +110,10 @@ const EditInvoice = () => {
           payment_status: inv.payment_status || "Pending",
         });
       } catch (error) {
-        toast.error(error.response?.data?.message || "Invoice not found.");
-        navigate("/invoices");
+        if (!error._isAuthError) {
+          toast.error(error.response?.data?.message || "Invoice not found.");
+          navigate("/invoices");
+        }
       } finally {
         setFetchLoading(false);
       }
@@ -178,7 +180,9 @@ const EditInvoice = () => {
       toast.success("Invoice updated successfully!");
       navigate(`/invoices/${id}`);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to update invoice.");
+      if (!error._isAuthError) {
+        toast.error(error.response?.data?.message || "Failed to update invoice.");
+      }
     } finally {
       setLoading(false);
     }
