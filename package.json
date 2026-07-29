@@ -1,6 +1,6 @@
 {
   "name": "invoice-desktop-app",
-  "version": "4.0.0",
+  "version": "5.1.1",
   "main": "electron-main.js",
   "type": "module",
   "scripts": {
@@ -24,12 +24,6 @@
       "electron-preload.js",
       "frontend/dist/**/*",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "backend",
-        "to": "backend"
-      }
     ],
     "win": {
       "target": [

@@ -7,7 +7,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isPacked = app.isPackaged;
-
 let mainWindow = null;
 
 function createWindow() {
@@ -26,11 +25,9 @@ function createWindow() {
   });
 
   if (!isPacked) {
-    // Dev: load Vite dev server
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
-    // Production: app.getAppPath() reliably returns the asar root path
     mainWindow.loadFile(
       path.join(app.getAppPath(), "frontend", "dist", "index.html")
     );
@@ -46,7 +43,7 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
 
   ipcMain.handle("print-to-pdf", async (_event, invoiceNumber) => {

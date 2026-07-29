@@ -1,15 +1,17 @@
 import axios from "axios";
 
 // Dev: Vite proxies /api → http://localhost:5001
-// Production (file:// protocol): Electron spawns backend locally on 5001
-const baseURL =
-  typeof window !== "undefined" && window.location.protocol === "file:"
-    ? "http://localhost:5001/api"
-    : "/api";
+// Production (file:// protocol): Render deployed backend
+const isProduction =
+  typeof window !== "undefined" && window.location.protocol === "file:";
+
+const baseURL = isProduction
+  ? "https://invoice-desktop-app-1.onrender.com/api"
+  : "/api";
 
 const api = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: isProduction ? 60000 : 10000,
 });
 
 // Request interceptor — attach Bearer token
